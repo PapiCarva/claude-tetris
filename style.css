@@ -1,6 +1,7 @@
 :root {
   --bg: #0f0f17;
   --text: #e0e0e0;
+  --title-color: #e53935;
   --accent: #7aa2f7;
   --accent-hover: #9bbdff;
   --accent-text: #0f0f17;
@@ -20,6 +21,7 @@
 :root[data-theme="light"] {
   --bg: #f2f3f7;
   --text: #22232b;
+  --title-color: #c62828;
   --accent: #3b62c4;
   --accent-hover: #2d4fa8;
   --accent-text: #ffffff;
@@ -59,7 +61,7 @@ body {
   font-weight: 800;
   letter-spacing: 8px;
   padding-left: 8px; /* compensa el espaciado final para centrar el texto */
-  color: var(--accent);
+  color: var(--title-color);
   margin-bottom: 20px;
 }
 
