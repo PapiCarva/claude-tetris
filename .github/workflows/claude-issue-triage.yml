@@ -77,7 +77,12 @@ jobs:
                - Área (1 o 2): area:ui, area:gameplay, area:controls, area:scoring, area:performance
                - Prioridad (exactamente 1): priority:high, priority:medium, priority:low
                - Extra (opcional): needs-info (si falta información para diagnosticar)
-            3. Escribe `.triage/diagnosis.md` en español, en Markdown, con estas secciones:
+            3. Escribe `.triage/diagnosis.md` en español. Este contenido se publicará
+               tal cual como comentario en GitHub, así que debe ser Markdown válido
+               que GitHub (GFM) renderice correctamente: encabezados `##`, listas con
+               `-` o `1.`, código en `inline` o bloques ``` con lenguaje, y
+               referencias `archivo:línea` entre backticks. Sin HTML ni formatos
+               que GitHub no entienda. Usa estas secciones:
                ## Resumen
                ## Tipo y severidad
                ## Análisis / causa probable  (referencias `archivo:línea`)
