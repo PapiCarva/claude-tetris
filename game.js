@@ -77,6 +77,7 @@ const pauseMain = document.getElementById('pause-main');
 const pauseControlsView = document.getElementById('pause-controls-view');
 const pauseTitle = document.getElementById('pause-title');
 const startLevelSelect = document.getElementById('start-level-select');
+const skinSelect = document.getElementById('skin-select');
 const undoBtn = abilityList.querySelector('[data-ability="undo"]');
 
 // ---- Records (pantalla de inicio / game over) ----
@@ -387,15 +388,108 @@ function handleMenuKey(e) {
   }
 }
 
+// ---- Skins ----
+
+// camino de rectángulo redondeado (roundRect con fallback manual)
+function roundRectPath(context, x, y, w, h, r) {
+  context.beginPath();
+  if (context.roundRect) {
+    context.roundRect(x, y, w, h, r);
+    return;
+  }
+  context.moveTo(x + r, y);
+  context.arcTo(x + w, y, x + w, y + h, r);
+  context.arcTo(x + w, y + h, x, y + h, r);
+  context.arcTo(x, y + h, x, y, r);
+  context.arcTo(x, y, x + w, y, r);
+  context.closePath();
+}
+
+// hash determinista (sin random por frame) para la textura pixel art
+function pixelNoise(type, i, j) {
+  const h = Math.imul(type * 73856093 ^ i * 19349663 ^ j * 83492791, 2654435761);
+  return ((h >>> 0) % 100) / 100;
+}
+
+const SKINS = {
+  retro: {
+    colors: COLORS,
+    colorsLight: COLORS_LIGHT,
+    drawBlock(context, px, py, color, size) {
+      context.fillStyle = color;
+      context.fillRect(px + 1, py + 1, size - 2, size - 2);
+      // highlight
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(px + 1, py + 1, size - 2, 4);
+    },
+  },
+  neon: {
+    // mismos colores en ambos temas: el canvas siempre es oscuro
+    colors: [null, '#00e5ff', '#ffee00', '#d500f9', '#00ff6a', '#ff1744', '#2979ff', '#ff9100', '#c0d0ff'],
+    colorsLight: [null, '#00e5ff', '#ffee00', '#d500f9', '#00ff6a', '#ff1744', '#2979ff', '#ff9100', '#c0d0ff'],
+    drawBlock(context, px, py, color, size) {
+      context.shadowColor = color;
+      context.shadowBlur = Math.max(4, size * 0.4);
+      context.fillStyle = color;
+      context.fillRect(px + 2, py + 2, size - 4, size - 4);
+      context.shadowBlur = 0;
+      context.shadowColor = 'transparent';
+      // núcleo más claro
+      context.fillStyle = 'rgba(255,255,255,0.25)';
+      context.fillRect(px + 4, py + 4, size - 8, size - 8);
+    },
+  },
+  pastel: {
+    colors: [null, '#a8e6ef', '#fff1b8', '#e1bee7', '#c8e6c9', '#f8bbd0', '#bbdefb', '#ffe0b2', '#d7dde0'],
+    colorsLight: [null, '#7fd3e0', '#f5d97a', '#c99ad6', '#9fd3a3', '#ee98b3', '#90bff0', '#f5c27a', '#b4bec4'],
+    drawBlock(context, px, py, color, size) {
+      const r = Math.max(2, size * 0.28);
+      context.fillStyle = color;
+      roundRectPath(context, px + 1, py + 1, size - 2, size - 2, r);
+      context.fill();
+      // brillo suave
+      context.fillStyle = 'rgba(255,255,255,0.35)';
+      roundRectPath(context, px + size * 0.2, py + size * 0.15, size * 0.45, size * 0.18, size * 0.09);
+      context.fill();
+    },
+  },
+  pixel: {
+    colors: [null, '#29b6f6', '#fdd835', '#ab47bc', '#66bb6a', '#ef5350', '#5c6bc0', '#ffa726', '#90a4ae'],
+    colorsLight: [null, '#0288d1', '#f9a825', '#8e24aa', '#388e3c', '#d32f2f', '#3949ab', '#ef6c00', '#607d8b'],
+    drawBlock(context, px, py, color, size, type) {
+      context.fillStyle = color;
+      context.fillRect(px + 1, py + 1, size - 2, size - 2);
+      // sub-cuadros claros/oscuros deterministas por tipo y posición
+      const cell = Math.max(3, Math.round(size / 6));
+      const inner = size - 2;
+      const n = Math.ceil(inner / cell);
+      for (let j = 0; j < n; j++) {
+        for (let i = 0; i < n; i++) {
+          const v = pixelNoise(type, i, j);
+          if (v < 0.25) context.fillStyle = 'rgba(255,255,255,0.22)';
+          else if (v > 0.7) context.fillStyle = 'rgba(0,0,0,0.2)';
+          else continue;
+          const w = Math.min(cell, inner - i * cell);
+          const h = Math.min(cell, inner - j * cell);
+          context.fillRect(px + 1 + i * cell, py + 1 + j * cell, w, h);
+        }
+      }
+      // borde oscuro de 1px
+      context.strokeStyle = 'rgba(0,0,0,0.45)';
+      context.lineWidth = 1;
+      context.strokeRect(px + 1.5, py + 1.5, size - 3, size - 3);
+    },
+  },
+};
+
+let skin = 'retro';
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = (theme === 'light' ? COLORS_LIGHT : COLORS)[colorIndex];
+  const s = SKINS[skin];
+  const color = (theme === 'light' ? s.colorsLight : s.colors)[colorIndex];
   context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  s.drawBlock(context, x * size, y * size, color, size, colorIndex);
   context.globalAlpha = 1;
 }
 
@@ -814,6 +908,40 @@ function loadTheme() {
   }
 }
 
+function applySkin(name) {
+  if (!SKINS[name]) name = 'retro';
+  skin = name;
+  document.documentElement.dataset.skin = name;
+  skinSelect.value = name;
+  // el --grid depende de la skin (neon fuerza fondo oscuro)
+  gridColor = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim() || gridColor;
+  if (current) {
+    draw();
+    drawNext();
+    drawHold();
+  }
+}
+
+function loadSkin() {
+  try {
+    const s = localStorage.getItem('skin');
+    return SKINS[s] ? s : 'retro';
+  } catch {
+    return 'retro';
+  }
+}
+
+skinSelect.addEventListener('change', () => {
+  try { localStorage.setItem('skin', skinSelect.value); } catch {}
+  applySkin(skinSelect.value);
+  skinSelect.blur(); // evita que Space (hard drop) abra el select
+});
+
+// al cerrar el desplegable sin cambiar nada, también soltar el foco
+skinSelect.addEventListener('keydown', e => {
+  if (e.code === 'Escape' || e.code === 'Enter') skinSelect.blur();
+});
+
 themeToggle.addEventListener('click', () => {
   const name = theme === 'dark' ? 'light' : 'dark';
   try { localStorage.setItem('theme', name); } catch {}
@@ -821,6 +949,7 @@ themeToggle.addEventListener('click', () => {
   themeToggle.blur(); // evita que Space active el botón durante la partida
 });
 
+applySkin(loadSkin());
 applyTheme(loadTheme());
 resetState();
 draw();
