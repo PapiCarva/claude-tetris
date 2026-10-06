@@ -209,6 +209,9 @@ function draw() {
     for (let c = 0; c < COLS; c++)
       drawBlock(ctx, c, r, board[r][c], BLOCK);
 
+  // al terminar, la pieza que no cupo no se dibuja encima del tablero
+  if (gameOver) return;
+
   // ghost
   const gy = ghostY();
   for (let r = 0; r < current.shape.length; r++)
@@ -239,6 +242,7 @@ function endGame() {
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
+  draw();
 }
 
 function togglePause() {
@@ -256,6 +260,7 @@ function togglePause() {
 }
 
 function loop(ts) {
+  if (gameOver || paused) return;
   const dt = ts - lastTime;
   lastTime = ts;
   dropAccum += dt;
@@ -268,6 +273,8 @@ function loop(ts) {
     }
   }
   draw();
+  // endGame() puede haberse llamado desde lockPiece(); no reprogramar el frame
+  if (gameOver) return;
   animId = requestAnimationFrame(loop);
 }
 
