@@ -291,6 +291,62 @@ kbd {
   margin-right: 6px;
 }
 
+/* ---- Menú de pausa ---- */
+#pause-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: var(--accent);
+}
+
+#pause-menu .menu-list {
+  min-width: 200px;
+}
+
+#pause-menu .btn {
+  text-align: center;
+}
+
+.pause-level {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pause-level select {
+  background: var(--kbd-bg);
+  color: var(--text);
+  border: 1px solid var(--kbd-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+#pause-level-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.pause-keys {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pause-keys li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* ---- Toggle de tema ---- */
 #theme-toggle {
   position: fixed;

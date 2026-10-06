@@ -72,6 +72,11 @@ const abilityList = document.getElementById('ability-list');
 const swapList = document.getElementById('swap-list');
 const menuTitle = document.getElementById('menu-title');
 const menuHint = document.getElementById('menu-hint');
+const pauseMenu = document.getElementById('pause-menu');
+const pauseMain = document.getElementById('pause-main');
+const pauseControlsView = document.getElementById('pause-controls-view');
+const pauseTitle = document.getElementById('pause-title');
+const startLevelSelect = document.getElementById('start-level-select');
 const undoBtn = abilityList.querySelector('[data-ability="undo"]');
 
 // ---- Records (pantalla de inicio / game over) ----
@@ -94,6 +99,12 @@ const overlayStats = document.getElementById('overlay-stats');
 let comboStreak = 0;   // piezas consecutivas que limpian líneas
 let maxCombo = 0;      // máximo de la partida actual
 let pendingRecord = null; // récord de la partida terminada aún sin guardar
+
+const MAX_START_LEVEL = 10;
+let startLevel = loadStartLevel(); // nivel con el que empieza la próxima partida
+let gameStartLevel = 1;            // nivel con el que empezó la partida actual
+let resumeGuard = false;           // ignora teclas tras reanudar hasta keyup o ~150ms
+let resumeTimer = null;
 
 let theme = 'dark';
 let gridColor = '#22222e';
@@ -171,7 +182,7 @@ function clearLines() {
     if (comboStreak > maxCombo) maxCombo = comboStreak;
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
-    level = Math.floor(lines / 10) + 1;
+    level = Math.max(gameStartLevel, Math.floor(lines / 10) + 1);
     dropInterval = baseInterval();
     energy = Math.min(ENERGY_MAX, energy + cleared * ENERGY_PER_LINE);
     updateHUD();
@@ -590,17 +601,46 @@ resetRecordsBtn.addEventListener('click', () => {
   showStartScreen();
 });
 
+
+function loadStartLevel() {
+  try {
+    const n = parseInt(localStorage.getItem('startLevel'), 10);
+    return n >= 1 && n <= MAX_START_LEVEL ? n : 1;
+  } catch {
+    return 1;
+  }
+}
+
+function showPauseMain() {
+  pauseTitle.textContent = 'PAUSA';
+  pauseMain.classList.remove('hidden');
+  pauseControlsView.classList.add('hidden');
+}
+
+function showPauseControls() {
+  pauseTitle.textContent = 'CONTROLES';
+  pauseMain.classList.add('hidden');
+  pauseControlsView.classList.remove('hidden');
+}
+
 function togglePause() {
   if (gameOver) return;
   paused = !paused;
   if (!paused) {
+    pauseMenu.classList.add('hidden');
+    if (document.activeElement) document.activeElement.blur(); // el select no debe quedar con foco
+    // evita movimientos accidentales con teclas aún pulsadas al reanudar
+    resumeGuard = true;
+    clearTimeout(resumeTimer);
+    resumeTimer = setTimeout(() => { resumeGuard = false; }, 150);
     lastTime = performance.now();
-    loop(lastTime);
+    dropAccum = 0;
+    animId = requestAnimationFrame(loop);
   } else {
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
-    overlay.classList.remove('hidden');
+    showPauseMain();
+    startLevelSelect.value = String(startLevel);
+    pauseMenu.classList.remove('hidden');
   }
 }
 
@@ -636,10 +676,12 @@ function resetState() {
   recordsBox.classList.add('hidden');
   score = 0;
   lines = 0;
-  level = 1;
+  gameStartLevel = startLevel;
+  level = gameStartLevel;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  resumeGuard = false;
+  dropInterval = baseInterval();
   dropAccum = 0;
   lastTime = performance.now();
   energy = 0;
@@ -658,6 +700,7 @@ function resetState() {
   updateHUD();
   drawHold();
   overlay.classList.add('hidden');
+  pauseMenu.classList.add('hidden');
   abilityMenu.classList.add('hidden');
   cancelAnimationFrame(animId);
 }
@@ -673,8 +716,16 @@ document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   if (!startScreen.classList.contains('hidden')) return;
   if (menuOpen) { handleMenuKey(e); return; }
-  if (e.code === 'KeyP') { togglePause(); return; }
-  if (paused || gameOver) return;
+  if (e.code === 'KeyP' || e.code === 'Escape') {
+    e.preventDefault();
+    if (e.repeat || gameOver) return;
+    // Escape dentro de la sub-vista de controles vuelve a la lista
+    if (paused && e.code === 'Escape' && !pauseControlsView.classList.contains('hidden')) showPauseMain();
+    else togglePause();
+    return;
+  }
+  if (e.code === 'Space') e.preventDefault();
+  if (paused || gameOver || resumeGuard) return;
   switch (e.code) {
     case 'KeyE':
       openAbilityMenu();
@@ -707,6 +758,31 @@ restartBtn.addEventListener('click', () => {
   restartBtn.blur();
   saveName(); // si quedó un récord sin guardar, se guarda con el nombre escrito (o "Anónimo")
   startGame();
+});
+
+document.addEventListener('keyup', e => {
+  // el keyup de la tecla que reanudó no cuenta
+  if (e.code === 'KeyP' || e.code === 'Escape') return;
+  resumeGuard = false;
+  clearTimeout(resumeTimer);
+});
+
+pauseMenu.addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  btn.blur(); // evita que Space active el botón durante la partida
+  switch (btn.id) {
+    case 'pause-resume': togglePause(); break;
+    case 'pause-restart': startGame(); break;
+    case 'pause-controls': showPauseControls(); break;
+    case 'pause-back': showPauseMain(); break;
+  }
+});
+
+startLevelSelect.addEventListener('change', () => {
+  startLevel = Math.min(MAX_START_LEVEL, Math.max(1, Number(startLevelSelect.value) || 1));
+  try { localStorage.setItem('startLevel', String(startLevel)); } catch {}
+  startLevelSelect.blur();
 });
 
 abilityMenu.addEventListener('click', e => {
