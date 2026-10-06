@@ -42,6 +42,15 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+const QUEUE_SIZE = 5;
+const ENERGY_MAX = 100;
+const ENERGY_PER_LINE = 25;
+const PEEK_MS = 30000;
+const SLOW_MS = 10000;
+const SLOW_FACTOR = 2.5;
+const ABILITIES = ['peek', 'swap', 'slow', 'undo', 'hold'];
+const PIECE_LETTERS = [null, 'I', 'O', 'T', 'S', 'Z', 'J', 'L', 'N'];
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -54,20 +63,34 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx = holdCanvas.getContext('2d');
+const energyFill = document.getElementById('energy-fill');
+const abilityStatusEl = document.getElementById('ability-status');
+const abilityMenu = document.getElementById('ability-menu');
+const abilityList = document.getElementById('ability-list');
+const swapList = document.getElementById('swap-list');
+const menuTitle = document.getElementById('menu-title');
+const menuHint = document.getElementById('menu-hint');
+const undoBtn = abilityList.querySelector('[data-ability="undo"]');
 
 let theme = 'dark';
 let gridColor = '#22222e';
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let board, current, queue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let energy, gameTime, peekUntil, slowUntil, peekShown, held, holdCharges, holdUsedThisPiece, undoSnapshot, menuOpen, swapMode;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
-function randomPiece() {
-  const type = Math.floor(Math.random() * (PIECES.length - 1)) + 1;
+function createPiece(type) {
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function randomPiece() {
+  return createPiece(Math.floor(Math.random() * (PIECES.length - 1)) + 1);
 }
 
 function collide(shape, ox, oy) {
@@ -125,9 +148,14 @@ function clearLines() {
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    dropInterval = baseInterval();
+    energy = Math.min(ENERGY_MAX, energy + cleared * ENERGY_PER_LINE);
     updateHUD();
   }
+}
+
+function baseInterval() {
+  return Math.max(100, 1000 - (level - 1) * 90);
 }
 
 function ghostY() {
@@ -154,14 +182,21 @@ function softDrop() {
 }
 
 function lockPiece() {
+  undoSnapshot = {
+    board: board.map(row => [...row]),
+    type: current.type,
+    queue: [...queue],
+    score, lines, level,
+  };
   merge();
   clearLines();
   spawn();
 }
 
 function spawn() {
-  current = next;
-  next = randomPiece();
+  current = queue.shift();
+  queue.push(randomPiece());
+  holdUsedThisPiece = false;
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -172,6 +207,147 @@ function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  energyFill.style.width = `${energy}%`;
+  energyFill.classList.toggle('full', energy >= ENERGY_MAX);
+  updateStatus();
+}
+
+function updateStatus() {
+  const parts = [];
+  if (energy >= ENERGY_MAX) parts.push('E: habilidad lista');
+  if (gameTime < peekUntil) parts.push(`Ver 5: ${Math.ceil((peekUntil - gameTime) / 1000)}s`);
+  if (gameTime < slowUntil) parts.push(`Lento: ${Math.ceil((slowUntil - gameTime) / 1000)}s`);
+  if (holdCharges > 0 && held === null) parts.push('Hold listo (C)');
+  const text = parts.join(' · ');
+  if (abilityStatusEl.textContent !== text) abilityStatusEl.textContent = text;
+}
+
+// ---- Habilidades ----
+
+function openAbilityMenu() {
+  if (paused || gameOver || menuOpen || energy < ENERGY_MAX) return;
+  menuOpen = true;
+  cancelAnimationFrame(animId);
+  undoBtn.disabled = !undoSnapshot;
+  showAbilityList();
+  abilityMenu.classList.remove('hidden');
+}
+
+function showAbilityList() {
+  swapMode = false;
+  menuTitle.textContent = 'HABILIDAD';
+  menuHint.textContent = 'Esc para cancelar';
+  abilityList.classList.remove('hidden');
+  swapList.classList.add('hidden');
+}
+
+function closeAbilityMenu() {
+  menuOpen = false;
+  swapMode = false;
+  abilityMenu.classList.add('hidden');
+  lastTime = performance.now();
+  if (!paused && !gameOver) animId = requestAnimationFrame(loop);
+}
+
+function finishAbility() {
+  energy = 0;
+  closeAbilityMenu();
+  updateHUD();
+  draw();
+  drawNext();
+  drawHold();
+}
+
+function chooseAbility(id) {
+  switch (id) {
+    case 'peek':
+      peekUntil = gameTime + PEEK_MS;
+      break;
+    case 'swap':
+      swapMode = true;
+      menuTitle.textContent = 'ELIGE PIEZA';
+      menuHint.textContent = 'Esc para volver';
+      abilityList.classList.add('hidden');
+      swapList.classList.remove('hidden');
+      return;
+    case 'slow':
+      slowUntil = gameTime + SLOW_MS;
+      break;
+    case 'undo':
+      if (!undoSnapshot) return;
+      restoreSnapshot();
+      break;
+    case 'hold':
+      holdCharges = 1;
+      break;
+    default:
+      return;
+  }
+  finishAbility();
+}
+
+function applySwap(type) {
+  const piece = createPiece(type);
+  if (collide(piece.shape, piece.x, piece.y)) {
+    // no cabe en la posición de spawn: intentar en la posición actual
+    piece.x = Math.min(current.x, COLS - piece.shape[0].length);
+    piece.y = current.y;
+    if (collide(piece.shape, piece.x, piece.y)) {
+      menuHint.textContent = 'No cabe esa pieza';
+      return;
+    }
+  }
+  current = piece;
+  finishAbility();
+}
+
+function restoreSnapshot() {
+  board = undoSnapshot.board;
+  score = undoSnapshot.score;
+  lines = undoSnapshot.lines;
+  level = undoSnapshot.level;
+  queue = undoSnapshot.queue;
+  dropInterval = baseInterval();
+  dropAccum = 0;
+  current = createPiece(undoSnapshot.type);
+  holdUsedThisPiece = false;
+  undoSnapshot = null;
+}
+
+function holdPiece() {
+  if (holdCharges <= 0 && held === null) return;
+  if (holdUsedThisPiece) return;
+  if (held === null) {
+    held = current.type;
+    holdCharges--;
+    spawn();
+    holdUsedThisPiece = true;
+  } else {
+    current = createPiece(held);
+    held = null;
+    holdUsedThisPiece = true;
+    if (collide(current.shape, current.x, current.y)) endGame();
+  }
+  drawHold();
+  updateHUD();
+}
+
+function handleMenuKey(e) {
+  if (e.code === 'Escape') {
+    e.preventDefault();
+    if (swapMode) showAbilityList();
+    else closeAbilityMenu();
+    return;
+  }
+  const m = /^(?:Digit|Numpad)(\d)$/.exec(e.code);
+  if (!m) return;
+  const n = Number(m[1]);
+  if (swapMode) {
+    if (n >= 1 && n < PIECES.length) applySwap(n);
+  } else if (n >= 1 && n <= ABILITIES.length) {
+    if (ABILITIES[n - 1] === 'undo' && !undoSnapshot) return;
+    chooseAbility(ABILITIES[n - 1]);
+  }
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -228,15 +404,38 @@ function draw() {
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
 }
 
+// dibuja la forma recortada y centrada en un slot de ancho w y alto slotH
+function drawCentered(context, shape, w, y0, slotH, size) {
+  const rows = [], cols = [];
+  shape.forEach((row, r) => row.forEach((v, c) => {
+    if (v) { rows.push(r); cols.push(c); }
+  }));
+  const minR = Math.min(...rows), maxR = Math.max(...rows);
+  const minC = Math.min(...cols), maxC = Math.max(...cols);
+  const offX = (w - (maxC - minC + 1) * size) / 2;
+  const offY = y0 + (slotH - (maxR - minR + 1) * size) / 2;
+  for (let r = minR; r <= maxR; r++)
+    for (let c = minC; c <= maxC; c++)
+      drawBlock(context, offX / size + (c - minC), offY / size + (r - minR), shape[r][c], size);
+}
+
 function drawNext() {
-  const NB = 30;
+  const peek = gameTime < peekUntil;
+  peekShown = peek;
+  const h = peek ? 250 : 120;
+  if (nextCanvas.height !== h) nextCanvas.height = h;
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
-  const shape = next.shape;
-  const offX = Math.floor((4 - shape[0].length) / 2);
-  const offY = Math.floor((4 - shape.length) / 2);
-  for (let r = 0; r < shape.length; r++)
-    for (let c = 0; c < shape[r].length; c++)
-      drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+  if (!peek) {
+    drawCentered(nextCtx, queue[0].shape, 120, 0, 120, 30);
+    return;
+  }
+  for (let i = 0; i < QUEUE_SIZE; i++)
+    drawCentered(nextCtx, queue[i].shape, 120, i * 50, 50, 14);
+}
+
+function drawHold() {
+  holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+  if (held !== null) drawCentered(holdCtx, PIECES[held], 120, 0, 120, 30);
 }
 
 function endGame() {
@@ -263,11 +462,13 @@ function togglePause() {
 }
 
 function loop(ts) {
-  if (gameOver || paused) return;
+  if (gameOver || paused || menuOpen) return;
   const dt = ts - lastTime;
   lastTime = ts;
+  gameTime += dt;
   dropAccum += dt;
-  if (dropAccum >= dropInterval) {
+  const interval = gameTime < slowUntil ? dropInterval * SLOW_FACTOR : dropInterval;
+  if (dropAccum >= interval) {
     dropAccum = 0;
     if (!collide(current.shape, current.x, current.y + 1)) {
       current.y++;
@@ -275,6 +476,8 @@ function loop(ts) {
       lockPiece();
     }
   }
+  updateStatus();
+  if ((gameTime < peekUntil) !== peekShown) drawNext();
   draw();
   // endGame() puede haberse llamado desde lockPiece(); no reprogramar el frame
   if (gameOver) return;
@@ -291,18 +494,38 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
-  next = randomPiece();
+  energy = 0;
+  gameTime = 0;
+  peekUntil = 0;
+  slowUntil = 0;
+  peekShown = false;
+  held = null;
+  holdCharges = 0;
+  holdUsedThisPiece = false;
+  undoSnapshot = null;
+  menuOpen = false;
+  swapMode = false;
+  queue = Array.from({ length: QUEUE_SIZE }, randomPiece);
   spawn();
   updateHUD();
+  drawHold();
   overlay.classList.add('hidden');
+  abilityMenu.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
+  if (menuOpen) { handleMenuKey(e); return; }
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
+    case 'KeyE':
+      openAbilityMenu();
+      break;
+    case 'KeyC':
+      holdPiece();
+      break;
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) current.x--;
       break;
@@ -326,6 +549,14 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
+abilityMenu.addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn || btn.disabled) return;
+  btn.blur(); // evita que Space active el botón durante la partida
+  if (btn.dataset.ability) chooseAbility(btn.dataset.ability);
+  else if (btn.dataset.type) applySwap(Number(btn.dataset.type));
+});
+
 function applyTheme(name) {
   theme = name;
   document.documentElement.dataset.theme = name;
@@ -335,6 +566,7 @@ function applyTheme(name) {
   if (current) {
     draw();
     drawNext();
+    drawHold();
   }
 }
 

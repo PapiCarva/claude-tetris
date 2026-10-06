@@ -16,6 +16,7 @@
   --danger: #e57373;
   --shadow: rgba(0, 0, 0, 0.6);
   --grid: #22222e;
+  --energy: #ffb74d;
 }
 
 :root[data-theme="light"] {
@@ -36,6 +37,7 @@
   --danger: #c62828;
   --shadow: rgba(0, 0, 0, 0.15);
   --grid: #e1e3ec;
+  --energy: #fb8c00;
 }
 
 *, *::before, *::after {
@@ -196,6 +198,97 @@ kbd {
 
 #restart-btn:hover {
   background: var(--accent-hover);
+}
+
+/* ---- Energía / habilidades ---- */
+#hold-canvas {
+  display: block;
+  border: 1px solid var(--border);
+  background: var(--panel-bg);
+  border-radius: 4px;
+}
+
+.energy-bar {
+  height: 12px;
+  background: var(--kbd-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+#energy-fill {
+  height: 100%;
+  width: 0;
+  background: var(--energy);
+  transition: width 0.25s;
+}
+
+#energy-fill.full {
+  animation: energy-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes energy-pulse {
+  50% { opacity: 0.45; }
+}
+
+.status {
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 14px;
+  line-height: 1.3;
+}
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menu-list.hidden {
+  display: none;
+}
+
+.swap-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+#menu-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: var(--accent);
+}
+
+#menu-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.btn {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn kbd {
+  margin-right: 6px;
 }
 
 /* ---- Toggle de tema ---- */

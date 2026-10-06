@@ -13,6 +13,18 @@
     <h1 class="title">TETRIS</h1>
 
     <div class="game-container">
+      <aside class="panel panel-left">
+        <div class="panel-section">
+          <span class="label">HOLD</span>
+          <canvas id="hold-canvas" width="120" height="120"></canvas>
+        </div>
+        <div class="panel-section">
+          <span class="label">ENERGY</span>
+          <div class="energy-bar"><div id="energy-fill"></div></div>
+          <span id="ability-status" class="status"></span>
+        </div>
+      </aside>
+
       <canvas id="board" width="300" height="600"></canvas>
 
       <aside class="panel">
@@ -41,6 +53,8 @@
             <li><kbd>↑</kbd> rotar</li>
             <li><kbd>↓</kbd> bajar</li>
             <li><kbd>Space</kbd> caída</li>
+            <li><kbd>E</kbd> habilidad</li>
+            <li><kbd>C</kbd> hold</li>
             <li><kbd>P</kbd> pausa</li>
           </ul>
         </div>
@@ -51,6 +65,30 @@
           <p id="overlay-title">GAME OVER</p>
           <p id="overlay-score"></p>
           <button id="restart-btn">Reiniciar</button>
+        </div>
+      </div>
+
+      <div id="ability-menu" class="overlay hidden">
+        <div class="overlay-box">
+          <p id="menu-title">HABILIDAD</p>
+          <div id="ability-list" class="menu-list">
+            <button class="btn" data-ability="peek"><kbd>1</kbd> Ver siguientes 5 (30s)</button>
+            <button class="btn" data-ability="swap"><kbd>2</kbd> Intercambiar pieza</button>
+            <button class="btn" data-ability="slow"><kbd>3</kbd> Ralentizar tiempo (10s)</button>
+            <button class="btn" data-ability="undo"><kbd>4</kbd> Deshacer última colocación</button>
+            <button class="btn" data-ability="hold"><kbd>5</kbd> Reservar pieza (hold)</button>
+          </div>
+          <div id="swap-list" class="menu-list swap-grid hidden">
+            <button class="btn" data-type="1"><kbd>1</kbd> I</button>
+            <button class="btn" data-type="2"><kbd>2</kbd> O</button>
+            <button class="btn" data-type="3"><kbd>3</kbd> T</button>
+            <button class="btn" data-type="4"><kbd>4</kbd> S</button>
+            <button class="btn" data-type="5"><kbd>5</kbd> Z</button>
+            <button class="btn" data-type="6"><kbd>6</kbd> J</button>
+            <button class="btn" data-type="7"><kbd>7</kbd> L</button>
+            <button class="btn" data-type="8"><kbd>8</kbd> N</button>
+          </div>
+          <p id="menu-hint">Esc para cancelar</p>
         </div>
       </div>
     </div>
