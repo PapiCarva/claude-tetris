@@ -64,7 +64,28 @@
         <div class="overlay-box">
           <p id="overlay-title">GAME OVER</p>
           <p id="overlay-score"></p>
+          <div id="records-box" class="records-box hidden">
+            <p id="record-badge" class="record-note record-new hidden">¡Nuevo récord!</p>
+            <div id="name-form" class="name-form hidden">
+              <input id="name-input" type="text" maxlength="12" placeholder="Tu nombre" autocomplete="off" />
+              <button id="save-name-btn" type="button" class="btn">Guardar</button>
+            </div>
+            <p id="record-msg" class="record-note"></p>
+            <table id="overlay-table" class="records-table"></table>
+            <p id="overlay-stats" class="record-note"></p>
+          </div>
           <button id="restart-btn">Reiniciar</button>
+        </div>
+      </div>
+
+      <div id="start-screen" class="overlay">
+        <div class="overlay-box">
+          <p id="start-title">TETRIS</p>
+          <span class="label">TOP 5</span>
+          <table id="start-table" class="records-table"></table>
+          <p id="start-stats" class="record-note"></p>
+          <button id="play-btn" type="button">Jugar</button>
+          <button id="reset-records-btn" type="button" class="btn">Resetear records</button>
         </div>
       </div>
 
