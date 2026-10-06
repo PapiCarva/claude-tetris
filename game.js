@@ -701,6 +701,11 @@ skinSelect.addEventListener('change', () => {
   skinSelect.blur(); // evita que Space (hard drop) abra el select
 });
 
+// al cerrar el desplegable sin cambiar nada, también soltar el foco
+skinSelect.addEventListener('keydown', e => {
+  if (e.code === 'Escape' || e.code === 'Enter') skinSelect.blur();
+});
+
 themeToggle.addEventListener('click', () => {
   const name = theme === 'dark' ? 'light' : 'dark';
   try { localStorage.setItem('theme', name); } catch {}
